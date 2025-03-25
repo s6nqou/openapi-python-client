@@ -70,11 +70,13 @@ class EnumProperty(PropertyProtocol):
         """
 
         enum = data.enum or []  # The outer function checks for this, but mypy doesn't know that
+        enum_names = data.__pydantic_extra__.get('x-enum-varnames') or data.__pydantic_extra__.get('x-enumNames') or []
 
         # OpenAPI allows for null as an enum value, but it doesn't make sense with how enums are constructed in Python.
         # So instead, if null is a possible value, make the property nullable.
         # Mypy is not smart enough to know that the type is right though
         unchecked_value_list = [value for value in enum if value is not None]  # type: ignore
+        unchecked_name_list = [name for name in enum_names if name is not None]
 
         # It's legal to have an enum that only contains null as a value, we don't bother constructing an enum for that
         if len(unchecked_value_list) == 0:
@@ -101,6 +103,9 @@ class EnumProperty(PropertyProtocol):
         value_list = cast(
             Union[list[int], list[str]], unchecked_value_list
         )  # We checked this with all the value_types stuff
+        name_list = cast(
+            list[str],  unchecked_name_list
+        )
 
         if len(value_list) < len(enum):  # Only one of the values was None, that becomes a union
             data.oneOf = [
@@ -121,7 +126,7 @@ class EnumProperty(PropertyProtocol):
         if parent_name:
             class_name = f"{utils.pascal_case(parent_name)}{utils.pascal_case(class_name)}"
         class_info = Class.from_string(string=class_name, config=config)
-        values = EnumProperty.values_from_list(value_list, class_info)
+        values = EnumProperty.values_from_list(value_list, name_list, class_info)
 
         if class_info.name in schemas.classes_by_name:
             existing = schemas.classes_by_name[class_info.name]
@@ -183,19 +188,21 @@ class EnumProperty(PropertyProtocol):
         return imports
 
     @staticmethod
-    def values_from_list(values: list[str] | list[int], class_info: Class) -> dict[str, ValueType]:
+    def values_from_list(values: list[str] | list[int], names: list[str], class_info: Class) -> dict[str, ValueType]:
         """Convert a list of values into dict of {name: value}, where value can sometimes be None"""
         output: dict[str, ValueType] = {}
 
         for i, value in enumerate(values):
             value = cast(Union[str, int], value)
-            if isinstance(value, int):
+            name = names[i] if i < len(names) else None
+            if name is not None and isinstance(name, str):
+                key = name
+            elif isinstance(value, int):
                 if value < 0:
-                    output[f"VALUE_NEGATIVE_{-value}"] = value
+                    key = f"VALUE_NEGATIVE_{-value}"
                 else:
-                    output[f"VALUE_{value}"] = value
-                continue
-            if value and value[0].isalpha():
+                    key = f"VALUE_{value}"
+            elif value and value[0].isalpha():
                 key = value.upper()
             else:
                 key = f"VALUE_{i}"
@@ -204,6 +211,8 @@ class EnumProperty(PropertyProtocol):
                     f"Duplicate key {key} in enum {class_info.module_name}.{class_info.name}; "
                     f"consider setting literal_enums in your config"
                 )
+            if not isinstance(value, int):
+                value = utils.remove_string_escapes(value)
             sanitized_key = utils.snake_case(key).upper()
-            output[sanitized_key] = utils.remove_string_escapes(value)
+            output[sanitized_key] = value
         return output
