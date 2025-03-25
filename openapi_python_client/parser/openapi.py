@@ -164,7 +164,7 @@ class Endpoint:
         for code, response_data in data.items():
             status_code: HTTPStatus
             try:
-                status_code = HTTPStatus(int(code))
+                status_code = HTTPStatus(int(200 if code == 'default' else code))
             except ValueError:
                 endpoint.errors.append(
                     ParseError(

@@ -11,6 +11,7 @@ from openapi_python_client.parser.properties.file import FileProperty
 from openapi_python_client.parser.properties.literal_enum_property import LiteralEnumProperty
 from openapi_python_client.parser.properties.model_property import ModelProperty, _gather_property_data
 from openapi_python_client.parser.properties.schemas import Class
+from openapi_python_client.parser.properties.union import UnionProperty
 
 __all__ = ["merge_properties"]
 
@@ -101,6 +102,9 @@ def _merge_same_type(
         if isinstance(inner_property, PropertyError):
             return PropertyError(detail=f"can't merge list properties: {inner_property.detail}")
         prop1.inner_property = inner_property
+
+    if isinstance(prop1, UnionProperty) and isinstance(prop2, UnionProperty):
+        return prop2
 
     # For all other property types, there aren't any special attributes that affect validation, so just
     # apply the rules for common attributes like "description".
