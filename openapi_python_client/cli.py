@@ -25,6 +25,7 @@ def _process_config(
     *,
     url: Optional[str],
     path: Optional[Path],
+    config_json: Optional[str],
     config_path: Optional[Path],
     meta_type: MetaType,
     file_encoding: str,
@@ -49,13 +50,18 @@ def _process_config(
         typer.secho(f"Unknown encoding : {file_encoding}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from err
 
-    if not config_path:
-        config_file = ConfigFile()
-    else:
+    if config_path:
         try:
             config_file = ConfigFile.load_from_path(path=config_path)
         except Exception as err:
             raise typer.BadParameter("Unable to parse config") from err
+    elif config_json:
+        try:
+            config_file = ConfigFile.load_from_str(json_str=config_json)
+        except Exception as err:
+            raise typer.BadParameter("Unable to parse config") from err
+    else:
+        config_file = ConfigFile()
 
     return Config.from_sources(config_file, meta_type, source, file_encoding, overwrite, output_path=output_path)
 
@@ -142,7 +148,8 @@ def generate(
         help="The type of metadata you want to generate.",
     ),
     file_encoding: str = typer.Option("utf-8", help="Encoding used when writing generated"),
-    config_path: Optional[Path] = typer.Option(None, "--config", help="Path to the config file to use"),
+    config_json: Optional[str] = typer.Option(None, help="Config json content"),
+    config_path: Optional[Path] = typer.Option(None, help="Path to the config file to use"),
     fail_on_warning: bool = False,
     overwrite: bool = typer.Option(False, help="Overwrite the existing client if it exists"),
     output_path: Optional[Path] = typer.Option(
@@ -158,6 +165,7 @@ def generate(
     config = _process_config(
         url=url,
         path=path,
+        config_json=config_json,
         config_path=config_path,
         meta_type=meta,
         file_encoding=file_encoding,

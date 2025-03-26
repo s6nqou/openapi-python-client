@@ -59,6 +59,11 @@ class ConfigFile(BaseModel):
         config = ConfigFile(**config_data)
         return config
 
+    @staticmethod
+    def load_from_str(json_str: str) -> "ConfigFile":
+        config_data = json.loads(json_str)
+        config = ConfigFile(**config_data)
+        return config
 
 @define
 class Config:
